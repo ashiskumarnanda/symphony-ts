@@ -1,3 +1,5 @@
+import { rm } from "node:fs/promises";
+
 import {
   CodexAppServerClient,
   type CodexClientEvent,
@@ -184,6 +186,7 @@ export class AgentRunner {
         workspacePath: workspace.path,
         workspaceRoot: this.config.workspace.root,
       });
+      await cleanupWorkspaceArtifacts(workspace.path);
       const workspacePath = workspace.path;
 
       await this.hooks.run({
@@ -399,6 +402,17 @@ export class AgentRunner {
       cause: input.error,
     });
   }
+}
+
+async function cleanupWorkspaceArtifacts(workspacePath: string): Promise<void> {
+  await Promise.all(
+    ["tmp", ".elixir_ls"].map(async (artifactName) => {
+      await rm(`${workspacePath}/${artifactName}`, {
+        force: true,
+        recursive: true,
+      });
+    }),
+  );
 }
 
 function createDefaultCodexClient(

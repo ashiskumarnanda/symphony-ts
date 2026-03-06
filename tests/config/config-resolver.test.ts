@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -177,6 +178,27 @@ describe("config-resolver", () => {
     );
 
     expect(resolved.tracker.apiKey).toBe("canonical-secret");
+  });
+
+  it("resolves env-backed workspace roots and expands the home directory", () => {
+    const envBacked = resolveWorkflowConfig(
+      {
+        workflowPath: "/repo/WORKFLOW.md",
+        promptTemplate: "Prompt",
+        config: {
+          workspace: {
+            root: "$WORKSPACE_ROOT",
+          },
+        },
+      },
+      {
+        WORKSPACE_ROOT: "~/symphony-workspaces",
+      },
+    );
+
+    expect(envBacked.workspace.root).toBe(
+      join(homedir(), "symphony-workspaces"),
+    );
   });
 
   it("blocks dispatch when required tracker settings are missing", () => {
