@@ -9,6 +9,7 @@
 [openai/symphony](https://github.com/openai/symphony) project.
 
 It starts with Linear and is designed to support additional tracker platforms over time.
+If you have a platform you want to add, open an issue and let us know.
 
 It is an orchestration service for agent-driven software delivery: it reads work from your tracker,
 creates a dedicated workspace for each issue, runs a coding agent inside that boundary, and gives
