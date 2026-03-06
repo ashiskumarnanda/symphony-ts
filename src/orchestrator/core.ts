@@ -84,7 +84,7 @@ export interface OrchestratorCoreOptions {
 export class OrchestratorCore {
   private config: ResolvedWorkflowConfig;
 
-  private readonly tracker: IssueTracker;
+  private tracker: IssueTracker;
 
   private readonly spawnWorker: OrchestratorCoreOptions["spawnWorker"];
 
@@ -116,6 +116,10 @@ export class OrchestratorCore {
   updateConfig(config: ResolvedWorkflowConfig): void {
     this.config = config;
     this.syncStateFromConfig();
+  }
+
+  updateTracker(tracker: IssueTracker): void {
+    this.tracker = tracker;
   }
 
   isDispatchEligible(

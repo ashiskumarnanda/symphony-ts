@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Writable } from "node:stream";
 
@@ -7,6 +7,7 @@ import type { AgentRunResult, AgentRunnerEvent } from "../agent/runner.js";
 import { AgentRunner } from "../agent/runner.js";
 import { validateDispatchConfig } from "../config/config-resolver.js";
 import type { ResolvedWorkflowConfig } from "../config/types.js";
+import { WorkflowWatcher } from "../config/workflow-watch.js";
 import type { Issue, RetryEntry, RunningEntry } from "../domain/model.js";
 import { ERROR_CODES } from "../errors/codes.js";
 import {
@@ -26,6 +27,7 @@ import {
 } from "../observability/dashboard-server.js";
 import { LinearTrackerClient } from "../tracker/linear-client.js";
 import type { IssueTracker } from "../tracker/tracker.js";
+import { WorkspaceHookRunner } from "../workspace/hooks.js";
 import { WorkspaceManager } from "../workspace/workspace-manager.js";
 import type {
   OrchestratorCoreOptions,
@@ -59,6 +61,7 @@ export interface RuntimeServiceOptions {
   tracker?: IssueTracker;
   runtimeHost?: OrchestratorRuntimeHost;
   workspaceManager?: WorkspaceManager;
+  workflowWatcher?: WorkflowWatcher | null;
   now?: () => Date;
   logger?: StructuredLogger;
   stdout?: Writable;
@@ -92,19 +95,23 @@ export class RuntimeHostStartupError extends Error {
 }
 
 export class OrchestratorRuntimeHost implements DashboardServerHost {
-  private readonly config: ResolvedWorkflowConfig;
+  private config: ResolvedWorkflowConfig;
 
-  private readonly tracker: IssueTracker;
+  private tracker: IssueTracker;
 
-  private readonly workspaceManager: WorkspaceManager;
+  private workspaceManager: WorkspaceManager;
 
-  private readonly agentRunner: AgentRunnerLike;
+  private agentRunner: AgentRunnerLike;
 
   private readonly now: () => Date;
 
   private readonly workers = new Map<string, WorkerExecution>();
 
   private readonly orchestrator: OrchestratorCore;
+
+  private readonly managesAgentRunner: boolean;
+
+  private readonly agentEventSink: (event: AgentRunnerEvent) => void;
 
   private eventQueue: Promise<unknown> = Promise.resolve();
 
@@ -116,33 +123,27 @@ export class OrchestratorRuntimeHost implements DashboardServerHost {
     this.now = options.now ?? (() => new Date());
     this.workspaceManager =
       options.workspaceManager ??
-      new WorkspaceManager({
-        root: options.config.workspace.root,
+      createWorkspaceManagerFromConfig(options.config);
+    this.agentEventSink = (event) => {
+      void this.enqueue(async () => {
+        this.orchestrator.onCodexEvent({
+          issueId: event.issueId,
+          event,
+        });
       });
+    };
+    this.managesAgentRunner =
+      options.agentRunner === undefined &&
+      options.createAgentRunner === undefined;
     this.agentRunner =
       options.agentRunner ??
       options.createAgentRunner?.({
-        onEvent: (event) => {
-          void this.enqueue(async () => {
-            this.orchestrator.onCodexEvent({
-              issueId: event.issueId,
-              event,
-            });
-          });
-        },
+        onEvent: this.agentEventSink,
       }) ??
-      new AgentRunner({
+      this.createManagedAgentRunner({
         config: options.config,
         tracker: options.tracker,
         workspaceManager: this.workspaceManager,
-        onEvent: (event) => {
-          void this.enqueue(async () => {
-            this.orchestrator.onCodexEvent({
-              issueId: event.issueId,
-              event,
-            });
-          });
-        },
       });
 
     const timerScheduler = createQueuedTimerScheduler({
@@ -175,6 +176,44 @@ export class OrchestratorRuntimeHost implements DashboardServerHost {
 
   getState() {
     return this.orchestrator.getState();
+  }
+
+  updateConfig(input: {
+    config: ResolvedWorkflowConfig;
+    tracker?: IssueTracker;
+    workspaceManager?: WorkspaceManager;
+  }): void {
+    this.config = input.config;
+
+    if (input.tracker !== undefined) {
+      this.tracker = input.tracker;
+      this.orchestrator.updateTracker(input.tracker);
+    }
+
+    if (input.workspaceManager !== undefined) {
+      this.workspaceManager = input.workspaceManager;
+    }
+
+    this.orchestrator.updateConfig(input.config);
+
+    if (this.managesAgentRunner) {
+      this.agentRunner = this.createManagedAgentRunner({
+        config: this.config,
+        tracker: this.tracker,
+        workspaceManager: this.workspaceManager,
+      });
+      return;
+    }
+
+    if (supportsConfigUpdate(this.agentRunner)) {
+      this.agentRunner.updateConfig({
+        config: this.config,
+        ...(input.tracker === undefined ? {} : { tracker: this.tracker }),
+        ...(input.workspaceManager === undefined
+          ? {}
+          : { workspaceManager: this.workspaceManager }),
+      });
+    }
   }
 
   async pollOnce() {
@@ -339,6 +378,19 @@ export class OrchestratorRuntimeHost implements DashboardServerHost {
     );
     return next;
   }
+
+  private createManagedAgentRunner(input: {
+    config: ResolvedWorkflowConfig;
+    tracker: IssueTracker;
+    workspaceManager: WorkspaceManager;
+  }): AgentRunnerLike {
+    return new AgentRunner({
+      config: input.config,
+      tracker: input.tracker,
+      workspaceManager: input.workspaceManager,
+      onEvent: this.agentEventSink,
+    });
+  }
 }
 
 export async function startRuntimeService(
@@ -352,19 +404,10 @@ export async function startRuntimeService(
     );
   }
 
-  const tracker =
-    options.tracker ??
-    new LinearTrackerClient({
-      endpoint: options.config.tracker.endpoint,
-      apiKey: options.config.tracker.apiKey,
-      projectSlug: options.config.tracker.projectSlug,
-      activeStates: options.config.tracker.activeStates,
-    });
-  const workspaceManager =
-    options.workspaceManager ??
-    new WorkspaceManager({
-      root: options.config.workspace.root,
-    });
+  let currentConfig = options.config;
+  let tracker = options.tracker ?? createLinearTrackerFromConfig(currentConfig);
+  let workspaceManager =
+    options.workspaceManager ?? createWorkspaceManagerFromConfig(currentConfig);
   const logger =
     options.logger ??
     (await createRuntimeLogger({
@@ -374,25 +417,27 @@ export async function startRuntimeService(
   const runtimeHost =
     options.runtimeHost ??
     new OrchestratorRuntimeHost({
-      config: options.config,
+      config: currentConfig,
       tracker,
       workspaceManager,
       ...(options.now === undefined ? {} : { now: options.now }),
     });
+  const usesManagedTracker = options.tracker === undefined;
+  const usesManagedWorkspaceManager = options.workspaceManager === undefined;
 
   await cleanupTerminalIssueWorkspaces({
     tracker,
-    terminalStates: options.config.tracker.terminalStates,
+    terminalStates: currentConfig.tracker.terminalStates,
     workspaceManager,
     logger,
   });
 
   const dashboard =
-    options.config.server.port === null
+    currentConfig.server.port === null
       ? null
       : await startDashboardServer({
           host: runtimeHost,
-          port: options.config.server.port,
+          port: currentConfig.server.port,
         });
 
   const stopController = new AbortController();
@@ -407,7 +452,7 @@ export async function startRuntimeService(
 
     pollTimer = setTimeout(() => {
       void runPollCycle();
-    }, options.config.polling.intervalMs);
+    }, currentConfig.polling.intervalMs);
   };
 
   const runPollCycle = async () => {
@@ -432,6 +477,53 @@ export async function startRuntimeService(
   };
 
   const removeSignalHandlers = installSignalHandlers(onSignal);
+  const workflowWatcher =
+    options.workflowWatcher === undefined
+      ? await createRuntimeWorkflowWatcher({
+          config: currentConfig,
+          logger,
+          onReload: async (nextConfig) => {
+            const previousConfig = currentConfig;
+            currentConfig = nextConfig;
+
+            if (usesManagedTracker) {
+              tracker = createLinearTrackerFromConfig(nextConfig);
+            }
+
+            if (usesManagedWorkspaceManager) {
+              workspaceManager = createWorkspaceManagerFromConfig(nextConfig);
+            }
+
+            runtimeHost.updateConfig({
+              config: nextConfig,
+              ...(usesManagedTracker ? { tracker } : {}),
+              ...(usesManagedWorkspaceManager ? { workspaceManager } : {}),
+            });
+
+            if (pollTimer !== null) {
+              clearTimeout(pollTimer);
+              pollTimer = null;
+              scheduleNextPoll();
+            }
+
+            if (
+              dashboard !== null &&
+              previousConfig.server.port !== nextConfig.server.port
+            ) {
+              await logger.warn(
+                "workflow_reload_port_ignored",
+                "Ignoring server.port change until runtime restart.",
+                {
+                  outcome: "degraded",
+                  reason: "server_port_reload_requires_restart",
+                  port: dashboard.port,
+                },
+              );
+            }
+          },
+        })
+      : options.workflowWatcher;
+  workflowWatcher?.start();
 
   const shutdown = async () => {
     if (shuttingDown) {
@@ -452,14 +544,15 @@ export async function startRuntimeService(
     await Promise.allSettled([
       runtimeHost.waitForIdle(),
       dashboard?.close() ?? Promise.resolve(),
+      workflowWatcher?.close() ?? Promise.resolve(),
     ]);
 
     resolveClosed(exitPromise);
   };
 
   await logger.info("runtime_starting", "Symphony runtime started.", {
-    poll_interval_ms: options.config.polling.intervalMs,
-    max_concurrent_agents: options.config.agent.maxConcurrentAgents,
+    poll_interval_ms: currentConfig.polling.intervalMs,
+    max_concurrent_agents: currentConfig.agent.maxConcurrentAgents,
     ...(dashboard === null ? {} : { port: dashboard.port }),
   });
 
@@ -474,6 +567,55 @@ export async function startRuntimeService(
     },
     shutdown,
   };
+}
+
+async function createRuntimeWorkflowWatcher(input: {
+  config: ResolvedWorkflowConfig;
+  logger: StructuredLogger;
+  onReload: (config: ResolvedWorkflowConfig) => Promise<void>;
+}): Promise<WorkflowWatcher | null> {
+  try {
+    await access(input.config.workflowPath);
+  } catch {
+    return null;
+  }
+
+  return await WorkflowWatcher.create({
+    workflowPath: input.config.workflowPath,
+    onReload: async ({ snapshot }) => {
+      if (!snapshot.dispatchValidation.ok) {
+        await input.logger.error(
+          "workflow_reload_rejected",
+          snapshot.dispatchValidation.error.message,
+          {
+            error_code: ERROR_CODES.workflowReloadRejected,
+            reason: snapshot.dispatchValidation.error.code,
+          },
+        );
+        return;
+      }
+
+      await input.onReload(snapshot.config);
+      await input.logger.info(
+        "workflow_reloaded",
+        "Applied updated workflow configuration.",
+        {
+          poll_interval_ms: snapshot.config.polling.intervalMs,
+          max_concurrent_agents: snapshot.config.agent.maxConcurrentAgents,
+        },
+      );
+    },
+    onError: async ({ error }) => {
+      await input.logger.error(
+        "workflow_reload_failed",
+        toErrorMessage(error),
+        {
+          error_code:
+            extractErrorCode(error) ?? ERROR_CODES.workflowReloadRejected,
+        },
+      );
+    },
+  });
 }
 
 async function cleanupTerminalIssueWorkspaces(input: {
@@ -501,6 +643,28 @@ async function cleanupTerminalIssueWorkspaces(input: {
       },
     );
   }
+}
+
+function createLinearTrackerFromConfig(
+  config: ResolvedWorkflowConfig,
+): LinearTrackerClient {
+  return new LinearTrackerClient({
+    endpoint: config.tracker.endpoint,
+    apiKey: config.tracker.apiKey,
+    projectSlug: config.tracker.projectSlug,
+    activeStates: config.tracker.activeStates,
+  });
+}
+
+function createWorkspaceManagerFromConfig(
+  config: ResolvedWorkflowConfig,
+): WorkspaceManager {
+  return new WorkspaceManager({
+    root: config.workspace.root,
+    hooks: new WorkspaceHookRunner({
+      config: config.hooks,
+    }),
+  });
 }
 
 async function createRuntimeLogger(input: {
@@ -668,4 +832,29 @@ function toErrorMessage(error: unknown): string {
   }
 
   return "worker failed";
+}
+
+function extractErrorCode(error: unknown): string | null {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+  ) {
+    return error.code;
+  }
+
+  return null;
+}
+
+function supportsConfigUpdate(
+  value: AgentRunnerLike,
+): value is AgentRunnerLike & {
+  updateConfig(input: {
+    config: ResolvedWorkflowConfig;
+    tracker?: IssueTracker;
+    workspaceManager?: WorkspaceManager;
+  }): void;
+} {
+  return "updateConfig" in value && typeof value.updateConfig === "function";
 }

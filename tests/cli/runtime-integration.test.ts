@@ -8,13 +8,16 @@ import {
 } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CLI_ACKNOWLEDGEMENT_FLAG, runCli } from "../../src/cli/main.js";
+import { resolveWorkflowConfig } from "../../src/config/config-resolver.js";
 import type { ResolvedWorkflowConfig } from "../../src/config/types.js";
+import { loadWorkflowDefinition } from "../../src/config/workflow-loader.js";
 import type { Issue } from "../../src/domain/model.js";
 import type { PollTickResult } from "../../src/orchestrator/core.js";
 import {
@@ -28,6 +31,10 @@ import type {
 } from "../../src/tracker/tracker.js";
 
 const tempDirs: string[] = [];
+const codexFixturePath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/codex-fake-server.mjs",
+);
 
 afterEach(async () => {
   await Promise.allSettled(
@@ -243,6 +250,168 @@ Prompt body
       message: "tracker.api_key must be configured before dispatch.",
     } satisfies Partial<RuntimeHostStartupError>);
   });
+
+  it("reloads workflow changes into the running service and rejects invalid reloads", async () => {
+    const root = await createTempDir("symphony-task18-reload-");
+    const logsRoot = join(root, "logs");
+    const workflowPath = join(root, "WORKFLOW.md");
+    await writeFile(
+      workflowPath,
+      `---
+tracker:
+  kind: linear
+  api_key: token
+  project_slug: ENG
+polling:
+  interval_ms: 30000
+workspace:
+  root: ${join(root, "workspaces-a")}
+server:
+  port: 0
+---
+Prompt v1
+`,
+      "utf8",
+    );
+    const config = await resolveRuntimeConfig(workflowPath);
+    const service = await startRuntimeService({
+      config,
+      logsRoot,
+      tracker: createTracker({
+        candidates: [],
+      }),
+      stdout: new PassThrough(),
+    });
+
+    await writeFile(
+      workflowPath,
+      `---
+tracker:
+  kind: linear
+  api_key: token
+  project_slug: ENG
+polling:
+  interval_ms: 25
+workspace:
+  root: ${join(root, "workspaces-b")}
+server:
+  port: 0
+---
+Prompt v2
+`,
+      "utf8",
+    );
+
+    await vi.waitFor(() => {
+      expect(service.runtimeHost.getState().pollIntervalMs).toBe(25);
+    });
+
+    await writeFile(
+      workflowPath,
+      `---
+tracker:
+  kind: linear
+---
+Prompt invalid
+`,
+      "utf8",
+    );
+
+    await vi.waitFor(async () => {
+      const logFile = await readFile(join(logsRoot, "symphony.jsonl"), "utf8");
+      expect(logFile).toContain('"event":"workflow_reloaded"');
+      expect(logFile).toContain('"event":"workflow_reload_rejected"');
+    });
+
+    expect(service.runtimeHost.getState().pollIntervalMs).toBe(25);
+
+    await service.shutdown();
+  });
+
+  it("runs a real end-to-end issue cycle with workflow hooks and the fake codex app-server", async () => {
+    const root = await createTempDir("symphony-task18-e2e-");
+    const logsRoot = join(root, "logs");
+    const workspaceRoot = join(root, "workspaces");
+    const workflowPath = join(root, "WORKFLOW.md");
+    await writeFile(
+      workflowPath,
+      `---
+tracker:
+  kind: linear
+  api_key: token
+  project_slug: ENG
+polling:
+  interval_ms: 25
+workspace:
+  root: ${workspaceRoot}
+hooks:
+  after_create: printf created > created.txt
+  before_run: printf before > before-run.txt
+  after_run: printf after > after-run.txt
+codex:
+  command: node "${codexFixturePath}" linear-tool
+  approval_policy: full-auto
+  thread_sandbox: workspace-write
+  turn_sandbox_policy:
+    type: workspace-write
+  turn_timeout_ms: 2000
+  read_timeout_ms: 500
+  stall_timeout_ms: 2000
+agent:
+  max_turns: 3
+server:
+  port: 0
+---
+Implement {{ issue.identifier }} attempt={{ attempt }}
+`,
+      "utf8",
+    );
+    const tracker = new EndToEndTracker();
+    const config = await resolveRuntimeConfig(workflowPath);
+    const service = await startRuntimeService({
+      config,
+      logsRoot,
+      tracker,
+      stdout: new PassThrough(),
+    });
+
+    const workspacePath = join(workspaceRoot, "ISSUE-1");
+    await vi.waitFor(async () => {
+      const state = await service.runtimeHost.getRuntimeSnapshot();
+      expect(state.counts.running + state.counts.retrying).toBeGreaterThan(0);
+      await expect(
+        readFile(join(workspacePath, "created.txt"), "utf8"),
+      ).resolves.toBe("created");
+      await expect(
+        readFile(join(workspacePath, "before-run.txt"), "utf8"),
+      ).resolves.toBe("before");
+    });
+
+    await vi.waitFor(async () => {
+      const state = await service.runtimeHost.getRuntimeSnapshot();
+      expect(state.counts.retrying).toBe(1);
+    });
+    await service.runtimeHost.runRetryTimer("issue-1");
+    await vi.waitFor(async () => {
+      const state = await service.runtimeHost.getRuntimeSnapshot();
+      expect(state.counts.running).toBe(0);
+      expect(state.counts.retrying).toBe(0);
+      expect([...service.runtimeHost.getState().claimed]).toEqual([]);
+    });
+
+    const issueDetail = await sendRequest(service.dashboard?.port ?? 0, {
+      method: "GET",
+      path: "/api/v1/ISSUE-1",
+    });
+    expect(issueDetail.statusCode).toBe(404);
+
+    await service.shutdown();
+
+    const logFile = await readFile(join(logsRoot, "symphony.jsonl"), "utf8");
+    expect(logFile).toContain('"event":"runtime_starting"');
+    expect(tracker.fetchCandidateIssues).toHaveBeenCalled();
+    expect(tracker.fetchIssueStatesByIds).toHaveBeenCalled();
+  });
 });
 
 function createTracker(input?: {
@@ -269,6 +438,54 @@ function createTracker(input?: {
     fetchIssuesByStates: vi.fn(async () => terminalIssues),
     fetchIssueStatesByIds: vi.fn(async () => stateSnapshots),
   };
+}
+
+class EndToEndTracker implements IssueTracker {
+  readonly fetchCandidateIssues = vi.fn(async () => {
+    if (this.completed) {
+      return [];
+    }
+
+    return [
+      createIssue({
+        id: "issue-1",
+        identifier: "ISSUE-1",
+        state: "Todo",
+      }),
+    ];
+  });
+
+  readonly fetchIssuesByStates = vi.fn(async () => []);
+
+  readonly fetchIssueStatesByIds = vi.fn(async (issueIds: string[]) => {
+    if (!issueIds.includes("issue-1")) {
+      return [];
+    }
+
+    this.refreshFetches += 1;
+    if (this.refreshFetches === 1) {
+      return [
+        {
+          id: "issue-1",
+          identifier: "ISSUE-1",
+          state: "In Progress",
+        },
+      ];
+    }
+
+    this.completed = true;
+    return [
+      {
+        id: "issue-1",
+        identifier: "ISSUE-1",
+        state: "Done",
+      },
+    ];
+  });
+
+  private refreshFetches = 0;
+
+  private completed = false;
 }
 
 class ThrowingRuntimeHost extends OrchestratorRuntimeHost {
@@ -348,6 +565,12 @@ async function createTempDir(prefix: string): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
   tempDirs.push(directory);
   return directory;
+}
+
+async function resolveRuntimeConfig(
+  workflowPath: string,
+): Promise<ResolvedWorkflowConfig> {
+  return resolveWorkflowConfig(await loadWorkflowDefinition(workflowPath), {});
 }
 
 async function sendRequest(
