@@ -25,53 +25,49 @@ moving from managing coding agents to managing work that needs to get done.
 
 ## Running Symphony
 
-## Roadmap
-
-| Item | Status |
-| --- | --- |
-| Implement Symphony and Linear integration | ✅ Complete |
-| Support more platforms such as GitHub Projects | 🟡 Planned |
-| Support a local board GUI | 🟡 Planned |
-| Support more coding agents such as Claude Code scheduling | 🟡 Planned |
-
-If there is a platform you want Symphony to support, open an issue and let us know.
-
 ### Requirements
 
 - Node.js `>= 22`
 - pnpm `>= 10`
 - a repository with a valid `WORKFLOW.md`
 - tracker credentials such as `LINEAR_API_KEY`
-- a coding agent runtime that supports app-server mode
+- a coding agent runtime that supports app-server mode, such as `codex app-server`
 
 ### Install
-
-```bash
-pnpm install
-pnpm build
-```
-
-If you want the packaged CLI after publishing:
 
 ```bash
 npm install -g symphony-ts
 ```
 
-### Quickstart
-
-1. Create `WORKFLOW.md` in the repository you want Symphony to operate on.
-2. Export `LINEAR_API_KEY`.
-3. Start Symphony from the repository root with the published CLI.
+Verify the CLI is available:
 
 ```bash
-export LINEAR_API_KEY=your-linear-token
-pnpm dlx symphony-ts --acknowledge-high-trust-preview
+symphony --help
 ```
 
-Symphony defaults to `./WORKFLOW.md`. You can pass an explicit path instead:
+### Quickstart
+
+1. Go to the repository you want Symphony to operate on.
+2. Create `WORKFLOW.md`.
+3. Export `LINEAR_API_KEY`.
+4. Start Symphony from that repository root.
 
 ```bash
-pnpm dlx symphony-ts path/to/WORKFLOW.md --acknowledge-high-trust-preview --port 4321
+cd /path/to/your-repo
+export LINEAR_API_KEY=your-linear-token
+symphony ./WORKFLOW.md --acknowledge-high-trust-preview --port 4321
+```
+
+If you do not pass a path, Symphony defaults to `./WORKFLOW.md`:
+
+```bash
+symphony --acknowledge-high-trust-preview --port 4321
+```
+
+You can also run without global install:
+
+```bash
+npx symphony-ts ./WORKFLOW.md --acknowledge-high-trust-preview --port 4321
 ```
 
 <details>
@@ -83,7 +79,7 @@ Set up and start Symphony in this repository.
 Requirements:
 - create or update WORKFLOW.md for Linear
 - use LINEAR_API_KEY from the environment or tell me exactly which variable is missing
-- start Symphony with the published CLI and the required --acknowledge-high-trust-preview flag
+- install symphony-ts and start Symphony with the required --acknowledge-high-trust-preview flag
 - if startup fails, stop and report the exact failing step and command
 ```
 
@@ -96,7 +92,7 @@ Requirements:
 tracker:
   kind: linear
   api_key: $LINEAR_API_KEY
-  project_slug: ENG
+  project_slug: your-linear-project-slug
 workspace:
   root: ~/code/symphony-workspaces
 codex:
@@ -108,6 +104,24 @@ server:
 You are working on Linear issue {{ issue.identifier }}.
 Implement the task, validate the result, and stop at the required handoff state.
 ```
+
+At minimum, you usually need to customize:
+
+- `tracker.project_slug`
+- `workspace.root`
+- `codex.command`
+
+If you want the dashboard, keep `server.port` in the workflow or pass `--port` on the CLI.
+
+### What You Get
+
+Once Symphony is running, it will:
+
+- poll your tracker for eligible work
+- create a dedicated workspace per issue
+- run your coding agent inside that workspace
+- expose a local dashboard and JSON API when `--port` or `server.port` is set
+- keep retry, reconciliation, and cleanup state visible to operators
 
 ### Develop
 
@@ -128,6 +142,17 @@ pnpm install
 pnpm build
 node dist/src/cli/main.js --acknowledge-high-trust-preview
 ```
+
+## Roadmap
+
+| Item | Status |
+| --- | --- |
+| Implement Symphony and Linear integration | ✅ Complete |
+| Support more platforms such as GitHub Projects | 🟡 Planned |
+| Support a local board GUI | 🟡 Planned |
+| Support more coding agents such as Claude Code scheduling | 🟡 Planned |
+
+If there is a platform you want Symphony to support, open an issue and let us know.
 
 ## What Symphony Does
 
