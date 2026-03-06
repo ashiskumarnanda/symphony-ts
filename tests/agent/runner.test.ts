@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -168,6 +168,63 @@ describe("AgentRunner", () => {
 
     expect(createCodexClient).not.toHaveBeenCalled();
     expect(hooks.runBestEffort).not.toHaveBeenCalled();
+  });
+
+  it("removes temporary workspace artifacts before each attempt starts", async () => {
+    const root = await createRoot();
+    const workspacePath = join(root, "ABC-123");
+    await mkdir(join(workspacePath, "tmp"), { recursive: true });
+    await mkdir(join(workspacePath, ".elixir_ls"), { recursive: true });
+
+    const hooks = {
+      run: vi.fn(
+        async ({
+          name,
+          workspacePath,
+        }: {
+          name: string;
+          workspacePath: string;
+        }) => {
+          if (name === "beforeRun") {
+            await expect(
+              stat(join(workspacePath, "tmp")),
+            ).rejects.toMatchObject({ code: "ENOENT" });
+            await expect(
+              stat(join(workspacePath, ".elixir_ls")),
+            ).rejects.toMatchObject({
+              code: "ENOENT",
+            });
+          }
+          return true;
+        },
+      ),
+      runBestEffort: vi.fn().mockResolvedValue(true),
+    };
+
+    const runner = new AgentRunner({
+      config: createConfig(root, "unused"),
+      tracker: createTracker({
+        refreshStates: [
+          { id: "issue-1", identifier: "ABC-123", state: "Done" },
+        ],
+      }),
+      hooks: hooks as never,
+      createCodexClient: (input) =>
+        createStubCodexClient([], input, {
+          statuses: ["completed"],
+        }),
+    });
+
+    const result = await runner.run({
+      issue: ISSUE_FIXTURE,
+      attempt: null,
+    });
+
+    expect(result.runAttempt.status).toBe("succeeded");
+    expect(hooks.run).toHaveBeenCalledWith({
+      name: "beforeRun",
+      workspacePath,
+    });
   });
 
   it("closes the session and still runs after_run best-effort when refresh fails", async () => {
