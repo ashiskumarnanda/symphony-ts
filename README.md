@@ -25,7 +25,7 @@ moving from managing coding agents to managing work that needs to get done.
 
 ## Running Symphony
 
-## RoadMap
+## Roadmap
 
 | Item | Status |
 | --- | --- |
@@ -48,6 +48,7 @@ If there is a platform you want Symphony to support, open an issue and let us kn
 
 ```bash
 pnpm install
+pnpm build
 ```
 
 If you want the packaged CLI after publishing:
@@ -56,13 +57,76 @@ If you want the packaged CLI after publishing:
 npm install -g symphony-ts
 ```
 
+### Quickstart
+
+1. Create `WORKFLOW.md` in the repository you want Symphony to operate on.
+2. Export `LINEAR_API_KEY`.
+3. Start Symphony from the repository root with the published CLI.
+
+```bash
+export LINEAR_API_KEY=your-linear-token
+pnpm dlx symphony-ts --acknowledge-high-trust-preview
+```
+
+Symphony defaults to `./WORKFLOW.md`. You can pass an explicit path instead:
+
+```bash
+pnpm dlx symphony-ts path/to/WORKFLOW.md --acknowledge-high-trust-preview --port 4321
+```
+
+<details>
+<summary>Agent setup prompt</summary>
+
+```text
+Set up and start Symphony in this repository.
+
+Requirements:
+- create or update WORKFLOW.md for Linear
+- use LINEAR_API_KEY from the environment or tell me exactly which variable is missing
+- start Symphony with the published CLI and the required --acknowledge-high-trust-preview flag
+- if startup fails, stop and report the exact failing step and command
+```
+
+</details>
+
+### Minimal `WORKFLOW.md`
+
+```md
+---
+tracker:
+  kind: linear
+  api_key: $LINEAR_API_KEY
+  project_slug: ENG
+workspace:
+  root: ~/code/symphony-workspaces
+codex:
+  command: codex app-server
+server:
+  port: 4321
+---
+
+You are working on Linear issue {{ issue.identifier }}.
+Implement the task, validate the result, and stop at the required handoff state.
+```
+
 ### Develop
 
 ```bash
+pnpm install
 pnpm build
 pnpm test
 pnpm lint
 pnpm format
+```
+
+### Run From Source
+
+If you are developing Symphony itself rather than using the published CLI:
+
+```bash
+pnpm install
+pnpm build
+node dist/src/cli/main.js --acknowledge-high-trust-preview
 ```
 
 ## What Symphony Does
@@ -92,12 +156,16 @@ Example:
 ---
 tracker:
   kind: linear
+  api_key: $LINEAR_API_KEY
+  project_slug: ENG
 workspace:
   root: ~/code/symphony-workspaces
 agent:
   max_concurrent_agents: 10
 codex:
   command: codex app-server
+server:
+  port: 4321
 ---
 
 You are working on Linear issue {{ issue.identifier }}.
