@@ -30,9 +30,11 @@ moving from managing coding agents to managing work that needs to get done.
 | Item | Status |
 | --- | --- |
 | Implement Symphony and Linear integration | ✅ Complete |
-| Support more platforms | 🟡 Planned |
+| Support more platforms such as GitHub Projects | 🟡 Planned |
 | Support a local board GUI | 🟡 Planned |
 | Support more coding agents such as Claude Code scheduling | 🟡 Planned |
+
+If there is a platform you want Symphony to support, open an issue and let us know.
 
 ### Requirements
 
