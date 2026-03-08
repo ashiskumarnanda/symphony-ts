@@ -106,6 +106,21 @@ If you want the dashboard, keep `server.port` in the workflow or pass `--port` o
 The web dashboard now opens with a server-rendered snapshot and continues updating live in the
 browser over server-sent events.
 
+If your agent workflow needs access to environment variables from the launching shell, configure
+Codex to inherit them in `codex.command`, for example:
+
+```yaml
+codex:
+  command: codex --config shell_environment_policy.inherit=all app-server
+```
+
+If your agent must push branches, open PRs, or call external APIs during a turn, also configure a
+turn sandbox policy that explicitly allows network access instead of relying on a minimal
+`workspaceWrite` sandbox object.
+
+If a specific external CLI still does not see the credentials it needs in your environment, provide
+that tool's credential via environment variables before launching Symphony.
+
 For a complete reference covering every supported field with defaults and inline documentation, see
 [docs/WORKFLOW.template.md](docs/WORKFLOW.template.md).
 

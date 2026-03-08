@@ -186,7 +186,7 @@ issue to "In Review" and leave a comment summarizing what you did.
 | `agent.max_retry_backoff_ms` | Max retry back-off delay in ms (exponential cap) | `300000` |
 | `agent.max_concurrent_agents_by_state` | Per-state concurrency overrides (map of state → limit) | `{}` |
 | `codex.command` | Shell command to launch Codex | `codex app-server` |
-| `codex.approval_policy` | Codex approval policy: `never` / `on-failure` / `always` | Inherits Codex default |
+| `codex.approval_policy` | Codex approval policy, passed through to the installed Codex schema | Inherits Codex default |
 | `codex.thread_sandbox` | Thread-level sandbox mode (e.g. `workspace-write`) | `null` |
 | `codex.turn_sandbox_policy` | Per-turn sandbox policy object | `null` |
 | `codex.turn_timeout_ms` | Max wall-clock time in ms for a full agent turn | `3600000` |
@@ -217,6 +217,43 @@ node dist/src/cli/main.js --acknowledge-high-trust-preview --port 3000
 ```
 
 > `--acknowledge-high-trust-preview` is a required safety flag. Symphony runs agent code without sandboxing by default; this flag confirms you understand that.
+
+### Environment and networked CLI note
+
+If your workflow depends on environment variables from the launching shell, launch Codex with
+shell environment inheritance enabled:
+
+```yaml
+codex:
+  command: codex --config shell_environment_policy.inherit=all app-server
+```
+
+If the agent must use networked tools during a turn, configure an explicit
+`codex.turn_sandbox_policy` that allows network access, for example:
+
+```yaml
+codex:
+  approval_policy: never
+  thread_sandbox: workspace-write
+  turn_sandbox_policy:
+    type: workspaceWrite
+    writableRoots:
+      - /tmp/symphony_workspaces
+    readOnlyAccess:
+      type: fullAccess
+    networkAccess: true
+    excludeTmpdirEnvVar: false
+    excludeSlashTmp: false
+```
+
+With that in place, env-based credentials exported before launching Symphony are available to turn
+commands. If a specific external CLI still does not find usable credentials in your environment,
+provide that tool's credential explicitly via an env var such as `GH_TOKEN`, `GITHUB_TOKEN`, or a
+provider-specific API key.
+
+The exact accepted sandbox and approval values depend on the installed Codex app-server version. To
+inspect the local schema, run `codex app-server generate-json-schema --out <dir>` and inspect the
+generated `ThreadStartParams` and `TurnStartParams` schema files.
 
 ### Step 6: Trigger a Test Issue in Linear
 
