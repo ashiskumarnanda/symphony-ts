@@ -389,7 +389,7 @@ export class OrchestratorRuntimeHost implements DashboardServerHost {
     );
 
     if (execution.stopRequest?.cleanupWorkspace === true) {
-      await this.workspaceManager.removeForIssue(execution.issueIdentifier);
+      await this.workspaceManager.removeForIssue(execution.issueId);
     }
 
     this.orchestrator.onWorkerExit({
@@ -703,7 +703,7 @@ async function cleanupTerminalIssueWorkspaces(input: {
     );
     await Promise.all(
       issues.map(async (issue) => {
-        await input.workspaceManager.removeForIssue(issue.identifier);
+        await input.workspaceManager.removeForIssue(issue.id);
       }),
     );
   } catch (error) {
@@ -906,7 +906,7 @@ function toRunningIssueDetail(
     issue_id: running.issue.id,
     status: "running",
     workspace: {
-      path: workspaceManager.resolveForIssue(running.identifier).workspacePath,
+      path: workspaceManager.resolveForIssue(running.issue.id).workspacePath,
     },
     attempts: {
       restart_count: running.retryAttempt ?? 0,
